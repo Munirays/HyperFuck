@@ -55,8 +55,6 @@ HyperFuck的堆栈不能直接操作，必须移到寄存器中操作。
 | {}        | 定义语句块，只有在要求跳跃时执行；不能嵌套 |
 | *         | 取消忽略跳跃指令                           |
 
-使用跳跃指令后会自动**忽略所有跳跃指令**，使用 `*` 指令恢复。  
-
 跳跃指令执行完毕后**不会自动跳回来**。 
 
 **示例**
@@ -104,18 +102,18 @@ q^^w^
 
 ### 其他语言
 
-由于HyperFuck语言的解释器用C++编写，因此暂时只能调用C++函数。
+由于HyperFuck语言的解释器用Python编写，因此暂时只能调用Python函数。
 
-在解释HyperFuck时增加参数 `-i （文件名.hi）` 可以让HyperFuck引用C++。   
+在解释HyperFuck时增加参数 `-i （文件名.hi）` 可以让HyperFuck引用Python。   
 
 `.hi` 文件的格式形似：
 
 ```
-random.dll randint,randascii
-foo.dll bar
+random.py randint,randascii
+foo.py bar
 ```
 
-每一行是一个 `dll` ，空格后接要引用的函数名。
+每一行是一个文件，空格后接要引用的函数名。
 
-函数参数必须为 `map<string, int>` （寄存器数据字典）和 `stack<string>` （栈），可直接对其操作。
+函数参数必须为 `dict` （寄存器数据字典）和 `list` （栈），可直接对其操作。
 
