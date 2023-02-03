@@ -1,3 +1,4 @@
+import sys
 import tools
 import msvcrt
 
@@ -57,11 +58,11 @@ class Interpreter:
         
         # 寄存器
         self.registers = {
-            "q": 0, "w": 0, "e": 0, "r": 0, "t": 0, "y": 0, "u": 0, "i": 0, 
-            "a": 0, "s": 0, "d": 0, "f": 0, "?": 0
-        }
+            "q": 0, "w": 0, "e": 0, "r": 0, "t": 0, "y": 0, "u": 0, "i": 0, "?": 0
+        }   
         # 跳跃字符位置
         self.jump_positions = {
+            "a": -1, "s": -1, "d": -1, "f": -1, 
             "z": -1, "x": -1, "c": -1, "b": -1, "n": -1, "m": -1
         }
         # 引用字符函数
@@ -90,13 +91,13 @@ class Interpreter:
     def check_next(self, type = None) -> int:
         char = self.next()
         current_type = None
-        if char in "qwertyuiasdf?":
+        if char in "qwertyui?":
             current_type = REG 
-        elif char in "zxcbnm":
+        elif char in "asdfzxcbnm":
             current_type = JMP
         elif char in "ophjkl":
             current_type = REF
-        elif char in "^v][',.@!$:`/*":
+        elif char in "^v]['.@!$:/*%`;":
             current_type = UNOP
         elif char in "+-~<>=&|":
             current_type = BINOP
@@ -222,6 +223,16 @@ class Interpreter:
                     print(data, end = "")
                     self.registers[self.selected_register] = ord(data)
                     continue
+                # 输入数字
+                if char == "%":
+                    self.check_selected(REG)
+                    self.eat()
+                    try:
+                        data = int(input())
+                    except:
+                        self.runtime_error("用户输入错误")
+                    self.registers[self.selected_register] = data
+                    continue
                 # 入栈
                 if char == "]":
                     self.check_selected(REG)
@@ -239,10 +250,7 @@ class Interpreter:
                 if char == "!":
                     self.check_selected(REG)
                     self.eat()
-                    if self.registers[self.selected_register] == 0:
-                        self.registers["?"] = 1
-                    else:
-                        self.registers["?"] = 0
+                    self.registers["?"] = int(not self.registers[self.selected_register])
                     continue
                 # 记录此处语句块
                 if char == "'":
@@ -251,7 +259,7 @@ class Interpreter:
                     self.jump_positions[self.selected_jump] = self.position
                     continue
                 # 跳到语句块
-                if char == ",":
+                if char == "/":
                     self.check_selected(JMP)
                     if self.jump_positions[self.selected_jump] == -1:
                         self.runtime_error("空的语句块指针")
@@ -259,20 +267,6 @@ class Interpreter:
                     self.jump_stack.push(self.position)
                     self.jump_countinue = 0
                     self.position = self.jump_positions[self.selected_jump]
-                    continue
-                # 记录此处内存地址
-                if char == "`":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.registers[self.selected_register] = self.position
-                    continue
-                # 跳到内存
-                if char == "/":
-                    self.check_selected(REG)
-                    if self.registers[self.selected_register] >= len(self.codes):
-                        self.runtime_error("空的内存地址指针")
-                    self.eat()
-                    self.position = self.registers[self.selected_register]
                     continue
                 # 跳到引用
                 if char == "$":
@@ -284,101 +278,86 @@ class Interpreter:
                     self.ref_functions[self.selected_ref](self.registers, stack_list)
                     self.stack.__stack = stack_list
                     continue
+                # 跳出
+                if char == "`":
+                    self.check_selected(REF)
+                    if len(self.while_stack.to_list()) == 0:
+                        self.syntax_error()
+                    # 跳到循环结束部分
+                    self.eat()
+                    if self.registers[self.selected_register] != 0:
+                        self.while_to_end()
+                    continue
+                # 继续
+                if char == ";":
+                    self.check_selected(REF)
+                    if len(self.while_stack.to_list()) == 0:
+                        self.syntax_error()
+                    # 跳到循环头
+                    self.eat()
+                    if self.registers[self.selected_register] != 0:
+                        reg = self.while_reg_stack.to_list()[-1]
+                        data = self.registers[reg]
+                        if data != 0:
+                            self.position = self.while_stack.to_list()[-1]
+                        else:
+                            self.while_to_end()
+                    continue
                     
             # 二元运算
             if type == BINOP:
+                self.check_selected(REG)
+                self.eat()
+                self.check_next(REG)
+                source = self.eat()
                 # 加寄存器
                 if char == "+":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.check_next(REG)
-                    source = self.eat()
                     self.registers[self.selected_register] += self.registers[source]
                     self.selected_register = source
                     continue
                 # 减寄存器
                 if char == "-":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.check_next(REG)
-                    source = self.eat()
                     self.registers[self.selected_register] -= self.registers[source]
                     self.selected_register = source
                     continue
                 # 传送数据
                 if char == "~":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.check_next(REG)
-                    source = self.eat()
                     self.registers[self.selected_register] = self.registers[source]
                     self.selected_register = source
                     continue
                 # 大于
                 if char == ">":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.check_next(REG)
-                    source = self.eat()
-                    data = self.registers[self.selected_register] > self.registers[source]
-                    if data:
-                        data = 1
-                    else:
-                        data = 0
+                    data = int(
+                        self.registers[self.selected_register] > self.registers[source]
+                    )
                     self.selected_register = source
                     self.registers["?"] = data
                     continue
                 # 小于
                 if char == "<":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.check_next(REG)
-                    source = self.eat()
-                    data = self.registers[self.selected_register] < self.registers[source]
-                    if data:
-                        data = 1
-                    else:
-                        data = 0
+                    data = int(
+                        self.registers[self.selected_register] < self.registers[source]
+                    )
                     self.selected_register = source
                     self.registers["?"] = data
                     continue
                 # 等于
                 if char == "=":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.check_next(REG)
-                    source = self.eat()
-                    data = self.registers[self.selected_register] == self.registers[source]
-                    if data:
-                        data = 1
-                    else:
-                        data = 0
+                    data = int(
+                        self.registers[self.selected_register] == self.registers[source]
+                    )
                     self.selected_register = source
                     self.registers["?"] = data
                     continue
                 # 与
                 if char == "&":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.check_next(REG)
-                    source = self.eat()
-                    if self.registers[self.selected_register] != 0 and self.registers[source] != 0:
-                        data = 1
-                    else:
-                        data = 0
+                    data = int(self.registers[self.selected_register] and self.registers[source])
                     self.selected_register = source
                     self.registers["?"] = data
                     continue
                 # 或
                 if char == "|":
-                    self.check_selected(REG)
-                    self.eat()
-                    self.check_next(REG)
-                    source = self.eat()
-                    if self.registers[self.selected_register] != 0 or self.registers[source] != 0:
-                        data = 1
-                    else:
-                        data = 0
+                    data = int(self.registers[self.selected_register] or self.registers[source])
                     self.selected_register = source
                     self.registers["?"] = data
                     continue
@@ -435,13 +414,22 @@ class Interpreter:
                     print()
                     continue
                 if char == "0":
-                    self.eat()
-                    print(tools.diagram(self.registers, self.stack.to_list()))
-                    continue
+                    sys.exit(0)
             
             # 没有任何一个匹配
             self.syntax_error()
             
+    # 跳到循环结束部分
+    def while_to_end(self):
+        self.while_stack.pop()
+        self.while_reg_stack.pop()
+        token = 1
+        while token != 0:
+            char = self.eat()
+            if char == "(":
+                token += 1
+            elif char == ")":
+                token -= 1
             
             
             
